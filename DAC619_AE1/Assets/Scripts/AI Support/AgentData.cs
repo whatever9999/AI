@@ -10,6 +10,12 @@ public enum AiMood { Idle, Attacking, Fleeing, Winning, Losing, Dead };
 /// </summary>
 public class AgentData : MonoBehaviour
 {
+    // Dominique, Blackboards
+    private WorldBlackboard worldBlackboard;
+    private TeamBlackboard teamBlackboard;
+    // Dominique, Allow the AgentActions to update the blackboard
+    public TeamBlackboard GetTeamBlackboard() { return teamBlackboard; }
+
     // Allow us to select the team in the Inspector
     public enum Teams
     {
@@ -176,6 +182,10 @@ public class AgentData : MonoBehaviour
         AgentActions actions = gameObject.GetComponent<AgentActions>();
 
         actions.DropAllItems();
+
+        // Dominique, Update blackboard
+        teamBlackboard.RemoveTeamMember(this);
+
         Destroy(gameObject);
     }
 
@@ -229,8 +239,11 @@ public class AgentData : MonoBehaviour
     {        
         CurrentHitPoints = MaxHitPoints;
 
+        // Dominique, Set world blackboard
+        worldBlackboard = GameObject.Find("WorldBlackboard").GetComponent<WorldBlackboard>();
+
         // Set all the appropriate parameters for the current team
-        switch(EnemyTeam)
+        switch (EnemyTeam)
         {
             case Teams.BlueTeam:
                 _enemyTeamTag = Tags.BlueTeam;
@@ -239,6 +252,9 @@ public class AgentData : MonoBehaviour
                 _friendlyFlagName = Names.RedFlag;
                 _friendlyBase = GameObject.Find(Names.RedBase);
                 _enemyBase = GameObject.Find(Names.BlueBase);
+
+                // Dominique, Set team blackboard
+                teamBlackboard = worldBlackboard.GetRedTeamBlackboard();
 
                 break;
 
@@ -250,8 +266,15 @@ public class AgentData : MonoBehaviour
                 _friendlyBase = GameObject.Find(Names.BlueBase);
                 _enemyBase = GameObject.Find(Names.RedBase);
 
+                // Dominique, Set team blackboard
+                teamBlackboard = worldBlackboard.GetBlueTeamBlackboard();
+
                 break;
         }
+
+        // Dominique, Tell blackboard what team we're on
+        teamBlackboard.AddTeamMember(this);
+
         _friendlyTeamScore = _friendlyBase.GetComponent<SetScore>();
         _enemyTeamScore = _enemyBase.GetComponent<SetScore>();
     }

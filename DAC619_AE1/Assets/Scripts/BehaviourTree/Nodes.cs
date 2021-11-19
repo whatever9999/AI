@@ -1,4 +1,3 @@
-using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -249,108 +248,236 @@ public class Actions
 
 public class Conditions
 {
+    // Check agent health
     public class AgentHeathLessThan : Node
     {
         private AgentData agentData;
         private TeamBlackboard teamBlackboard;
         GameObject_Type type;
+        int value;
 
-        public AgentHeathLessThan(AgentData agentData, TeamBlackboard teamBlackboard, GameObject_Type type)
+        public AgentHeathLessThan(AgentData agentData, TeamBlackboard teamBlackboard, GameObject_Type type, int value)
         {
             this.agentData = agentData;
+            this.teamBlackboard = teamBlackboard;
+            this.type = type;
+            this.value = value;
+        }
+        public override NodeState Evaluate()
+        {
+            // Check if CurrentHitPoints are less than the given value
+            bool result = false;
+            switch (type)
+            {
+                case GameObject_Type.WEAKEST_FRIENDLY:
+                    result = teamBlackboard.GetWeakestMember().GetComponent<AgentData>().CurrentHitPoints < value;
+                    break;
+                case GameObject_Type.THIS_AGENT:
+                    result = agentData.CurrentHitPoints < value;
+                    break;
+            }
+            if (result)
+            {
+                return NodeState.SUCCESS;
+            }
+            else
+            {
+                return NodeState.FAILURE;
+            }
+        }
+    }
+
+    // Check if there is a useable of that type on the level
+    public class UseableOnLevel : Node
+    {
+        Useable_Type type;
+
+        public UseableOnLevel(Useable_Type type)
+        {
+            this.type = type;
+        }
+        public override NodeState Evaluate()
+        {
+            // See if we can find a GO of Useable_Type
+            bool result = false;
+            switch (type)
+            {
+                case Useable_Type.HEALTH:
+                    if (GameObject.Find("Health Pack"))
+                    {
+                        result = true;
+                    }
+                    break;
+                case Useable_Type.POWER:
+                    if (GameObject.Find("Power Up"))
+                    {
+                        result = true;
+                    }
+                    break;
+            }
+            if (result)
+            {
+                return NodeState.SUCCESS;
+            }
+            else
+            {
+                return NodeState.FAILURE;
+            }
+        }
+    }
+
+    // Check if team of type has flag
+    public class TeamHasFlag : Node
+    {
+        TeamBlackboard teamBlackboard; // This should be the blackboard of the team we're checking (can get from WorldBlackboard)
+        Team_Type type;
+
+        public TeamHasFlag(TeamBlackboard teamBlackboard, Team_Type type)
+        {
             this.teamBlackboard = teamBlackboard;
             this.type = type;
         }
         public override NodeState Evaluate()
         {
-            // TODO: Check agent health
-            throw new System.NotImplementedException();
+            if (teamBlackboard.GetMemberWithFlag())
+            {
+                return NodeState.SUCCESS;
+            }
+            else
+            {
+                return NodeState.FAILURE;
+            }
         }
     }
 
-    public class UseableOnLevel : Node
-    {
-        WorldBlackboard worldBlackboard;
-        Useable_Type type;
-
-        public UseableOnLevel(WorldBlackboard worldBlackboard, Useable_Type type)
-        {
-            this.worldBlackboard = worldBlackboard;
-            this.type = type;
-        }
-        public override NodeState Evaluate()
-        {
-            // TODO: Check if there is a useable of that type on the level
-            throw new System.NotImplementedException();
-        }
-    }
-
-    public class TeamHasFlag : Node
-    {
-        WorldBlackboard worldBlackboard;
-        Team_Type type;
-
-        public TeamHasFlag(WorldBlackboard worldBlackboard, Team_Type type)
-        {
-            this.worldBlackboard = worldBlackboard;
-            this.type = type;
-        }
-        public override NodeState Evaluate()
-        {
-            // TODO: Check if team of type has flag
-            throw new System.NotImplementedException();
-        }
-    }
-
+    // Check if agent has collectable of type
     public class GotCollectable : Node
     {
-        private AgentData agentData;
+        private InventoryController inventoryController;
         Collectable_Type type;
 
-        public GotCollectable(AgentData agentData, Collectable_Type type)
+        public GotCollectable(InventoryController inventoryController, Collectable_Type type)
         {
-            this.agentData = agentData;
+            this.inventoryController = inventoryController;
             this.type = type;
         }
         public override NodeState Evaluate()
         {
-            // TODO: Check if agent has collectable of type
-            throw new System.NotImplementedException();
+            bool result = false;
+            switch (type)
+            {
+                case Collectable_Type.FLAG:
+                    if (inventoryController.HasItem("Flag"))
+                    {
+                        result = true;
+                    }
+                    break;
+                case Collectable_Type.HEALTH:
+                    if (inventoryController.HasItem("Health Pack"))
+                    {
+                        result = true;
+                    }
+                    break;
+                case Collectable_Type.POWER:
+                    if (inventoryController.HasItem("Power Up"))
+                    {
+                        result = true;
+                    }
+                    break;
+            }
+            if (result)
+            {
+                return NodeState.SUCCESS;
+            }
+            else
+            {
+                return NodeState.FAILURE;
+            }
         }
     }
 
+    // Check if collectable of type is in pickup range
     public class CollectableInPickupRange : Node
     {
-        private AgentData agentData;
+        private Sensing sensing;
         Collectable_Type type;
 
-        public CollectableInPickupRange(AgentData agentData, Collectable_Type type)
+        public CollectableInPickupRange(Sensing sensing, Collectable_Type type)
         {
-            this.agentData = agentData;
+            this.sensing = sensing;
             this.type = type;
         }
         public override NodeState Evaluate()
         {
-            // TODO: Check if collectable of type is in pickup range
-            throw new System.NotImplementedException();
+            bool result = false;
+            List<GameObject> collectablesInView = sensing.GetCollectablesInView();
+            for (int i = 0; i < collectablesInView.Count; i++)
+            {
+                // If the item is in reach
+                if (sensing.IsItemInReach(collectablesInView[i]))
+                {
+                    // And matches the type then it's in the pickup range
+                    switch (type)
+                    {
+                        case Collectable_Type.FLAG:
+                            if (collectablesInView[i].name.Equals("Flag"))
+                            {
+                                result = true;
+                            }
+                            break;
+                        case Collectable_Type.HEALTH:
+                            if (collectablesInView[i].name.Equals("Health Pack"))
+                            {
+                                result = true;
+                            }
+                            break;
+                        case Collectable_Type.POWER:
+                            if (collectablesInView[i].name.Equals("Power"))
+                            {
+                                result = true;
+                            }
+                            break;
+                        default:
+                            break;
+                    }
+                }
+            }
+            if (result)
+            {
+                return NodeState.SUCCESS;
+            }
+            else
+            {
+                return NodeState.FAILURE;
+            }
         }
     }
 
+    // Check if there is an enemy in attack range
     public class EnemyInAttackRange : Node
     {
         private AgentData agentData;
+        private Sensing sensing;
 
-        public EnemyInAttackRange(AgentData agentData)
+        public EnemyInAttackRange(AgentData agentData, Sensing sensing)
         {
             this.agentData = agentData;
+            this.sensing = sensing;
         }
         public override NodeState Evaluate()
         {
-            // TODO: Check if there is an enemy in attack range
-            throw new System.NotImplementedException();
+            if (sensing.IsInAttackRange(sensing.GetNearestEnemyInView()))
+            {
+                return NodeState.SUCCESS;
+            }
+            else
+            {
+                return NodeState.FAILURE;
+            }
         }
     }
 
+    // Check if a friendly team member is pursuing the flag
     public class TeamMemberPursuingFlag : Node
     {
         TeamBlackboard teamBlackboard;
@@ -361,8 +488,14 @@ public class Conditions
         }
         public override NodeState Evaluate()
         {
-            // TODO: Check if a friendly team member is pursuing the flag
-            throw new System.NotImplementedException();
+            if (teamBlackboard.GetMembersPursuingFlag().Count > 0)
+            {
+                return NodeState.SUCCESS;
+            }
+            else
+            {
+                return NodeState.FAILURE;
+            }
         }
     }
 }

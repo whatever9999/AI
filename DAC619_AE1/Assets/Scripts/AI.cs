@@ -103,6 +103,7 @@ public class AI : MonoBehaviour
         _agentSenses = GetComponentInChildren<Sensing>();
         _agentInventory = GetComponentInChildren<InventoryController>();
 
+
     }
 
     // Update is called once per frame

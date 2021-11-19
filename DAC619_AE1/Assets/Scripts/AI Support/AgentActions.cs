@@ -115,6 +115,18 @@ public class AgentActions : MonoBehaviour
             if (TestDestination(target.transform.position, out destination))
             {
                 _navAgent.destination = destination;
+
+                // Dominique, Update blackboard to know we're going after the flag
+                if (target.name.Equals(_agentData.EnemyFlagName))
+                {
+                    _agentData.GetTeamBlackboard().AddMemberPursuingFlag(gameObject);
+                }
+                // Dominique, If we're not going after the flag but we were then update the blackboard so it knows we're not anymore
+                else if(_agentData.GetTeamBlackboard().GetMembersPursuingFlag().Contains(gameObject))
+                {
+                    _agentData.GetTeamBlackboard().RemoveMemberPursuingFlag(gameObject);
+                }
+
                 return true;
             }
         }
@@ -133,6 +145,12 @@ public class AgentActions : MonoBehaviour
         if (TestDestination(target, out destination))
         {
             _navAgent.destination = destination;
+
+            // Dominique, If we're not going after the flag but we were then update the blackboard so it knows we're not anymore
+            if (_agentData.GetTeamBlackboard().GetMembersPursuingFlag().Contains(gameObject))
+            {
+                _agentData.GetTeamBlackboard().RemoveMemberPursuingFlag(gameObject);
+            }
             return true;
         }
 
@@ -148,6 +166,12 @@ public class AgentActions : MonoBehaviour
         if (PointInsideSphere(transform.position, _navAgent.destination, MaxArrivalRange) && _navAgent.hasPath == false) //  && _navAgent.pathPending == false
         {
             _navAgent.destination = GetRandomDestination(MaxRandomDestinationRange);
+
+            // Dominique, If we're not going after the flag but we were then update the blackboard so it knows we're not anymore
+            if (_agentData.GetTeamBlackboard().GetMembersPursuingFlag().Contains(gameObject))
+            {
+                _agentData.GetTeamBlackboard().RemoveMemberPursuingFlag(gameObject);
+            }
         }
     }
 
@@ -176,6 +200,12 @@ public class AgentActions : MonoBehaviour
                 {
                     item.GetComponent<Collectable>().Collect(_agentData);
                     _agentInventory.AddItem(item);
+
+                    // Dominique, Update the blackboard if picking up the flag
+                    if (item.name.Equals(_agentData.EnemyFlagName))
+                    {
+                        _agentData.GetTeamBlackboard().SetMemberWithFlag(gameObject);
+                    }
                 }
             }
         }
@@ -206,24 +236,30 @@ public class AgentActions : MonoBehaviour
     /// <param name="item">The item to drop</param>
     public void DropItem(GameObject item)
     {
-            // Check we actually have it and its collectable
-            if (_agentInventory.HasItem(item.name) && item.GetComponent<Collectable>() != null)
+        // Check we actually have it and its collectable
+        if (_agentInventory.HasItem(item.name) && item.GetComponent<Collectable>() != null)
+        {
+            // Check just in front of us that we're not dropping inside an obstacle
+            Vector3 targetPoint = gameObject.transform.position + gameObject.transform.forward;
+            // Make sure we're testing a position on the ground
+            targetPoint.y = 1.0f;
+
+            Vector3 dropPosition;
+            if (TestDestination(targetPoint, out dropPosition))
             {
-                // Check just in front of us that we're not dropping inside an obstacle
-                Vector3 targetPoint = gameObject.transform.position + gameObject.transform.forward;
-                // Make sure we're testing a position on the ground
-                targetPoint.y = 1.0f;
+                // Make sure we keep the original y position of the item
+                dropPosition.y = item.transform.position.y;
+                _agentInventory.RemoveItem(item.name);
 
-                Vector3 dropPosition;
-                if (TestDestination(targetPoint, out dropPosition))
+                item.GetComponent<Collectable>().Drop(_agentData, dropPosition);
+
+                // Dominique, Let the blackboard know the flag has been dropped
+                if (item.name.Equals(_agentData.EnemyFlagName))
                 {
-                    // Make sure we keep the original y position of the item
-                    dropPosition.y = item.transform.position.y;
-                    _agentInventory.RemoveItem(item.name);
-
-                    item.GetComponent<Collectable>().Drop(_agentData, dropPosition);
+                    _agentData.GetTeamBlackboard().SetMemberWithFlag(null);
                 }
             }
+        }
     }
 
     /// <summary>
