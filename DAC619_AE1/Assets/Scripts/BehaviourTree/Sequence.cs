@@ -9,48 +9,24 @@ public class Sequence : Node
         this.nodes = nodes;
     }
 
-    //public override NodeState Evaluate()
-    //{
-    //    bool isAnyNodeRunning = false;
-    //    for (int i = 0; i < nodes.Count; i++)
-    //    {
-    //        switch (nodes[i].Evaluate())
-    //        {
-    //            case NodeState.RUNNING:
-    //                isAnyNodeRunning = true;
-    //                break;
-    //            case NodeState.SUCCESS:
-    //                break;
-    //            case NodeState.FAILURE:
-    //                nodeState = NodeState.FAILURE;
-    //                return nodeState;
-    //                break;
-    //            default:
-    //                break;
-    //        }
-    //    }
-    //    nodeState = isAnyNodeRunning ? NodeState.RUNNING : NodeState.SUCCESS;
-    //    return nodeState;
-    //}
-
     public override NodeState Evaluate()
     {
+        bool isAnyNodeRunning = false;
         for (int i = 0; i < nodes.Count; i++)
         {
-            nodeState = nodes[i].Evaluate();
-            if (nodeState == NodeState.SUCCESS)
+            switch (nodes[i].Evaluate())
             {
-
-            }
-            if (nodeState == NodeState.RUNNING)
-            {
-                break;
-            }
-            if (nodeState == NodeState.FAILURE)
-            {
-                break;
+                case NodeState.RUNNING:
+                    isAnyNodeRunning = true;
+                    break;
+                case NodeState.SUCCESS:
+                    break;
+                case NodeState.FAILURE:
+                    nodeState = NodeState.FAILURE;
+                    return nodeState;
             }
         }
+        nodeState = isAnyNodeRunning ? NodeState.RUNNING : NodeState.SUCCESS;
         return nodeState;
     }
 }

@@ -166,11 +166,11 @@ public class Actions
             if (target)
             {
                 agentActions.MoveTo(target);
+                if (sensing.IsItemInReach(target))
+                {
+                    return NodeState.SUCCESS;
+                }
                 return NodeState.RUNNING;
-            }
-            else if (sensing.IsItemInReach(target))
-            {
-                return NodeState.SUCCESS;
             }
             else
             {
