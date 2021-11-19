@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
+#region Enums
 public enum Collectable_Type
 {
     FLAG,
@@ -19,6 +20,8 @@ public enum GameObject_Type
     FRIENDLY_WITH_FLAG,
     WEAKEST_FRIENDLY,
     THIS_AGENT,
+
+    BASE
 }
 public enum Useable_Type
 {
@@ -30,33 +33,37 @@ public enum Team_Type
     ENEMY,
     FRIENDLY,
 }
+#endregion // Enums
 
+#region Actions
 public class Actions
 {
     // Pick up the nearest Collectable_Type of collectable
     public class PickUpCollectable : Node
     {
         private AgentActions agentActions;
+        private AgentData agentData;
         private Sensing sensing;
         private Collectable_Type type;
 
-        public PickUpCollectable(AgentActions agentActions, Sensing sensing, Collectable_Type type)
+        public PickUpCollectable(AgentActions agentActions, AgentData agentData, Sensing sensing, Collectable_Type type)
         {
             this.agentActions = agentActions;
+            this.agentData = agentData;
             this.sensing = sensing;
             this.type = type;
         }
         public override NodeState Evaluate()
         {
             // What collectables can the agent see
-            List<GameObject> collectablesInView = sensing.GetCollectablesInView();
+            List<GameObject> collectablesInView = sensing.GetObjectsInView();
             for (int i = 0; i < collectablesInView.Count; i++)
             {
                 // Are any of them in reach and of the type we're looking for
-                if (    sensing.IsItemInReach(collectablesInView[i])                                        &&
-                        type == Collectable_Type.FLAG && collectablesInView[i].name.Equals("Flag")          ||
-                        type == Collectable_Type.POWER && collectablesInView[i].name.Equals("Power Up")     ||
-                        type == Collectable_Type.HEALTH && collectablesInView[i].name.Equals("Health Kit")     )
+                if (    sensing.IsItemInReach(collectablesInView[i])                                                &&
+                        type == Collectable_Type.FLAG && collectablesInView[i].name.Equals(agentData.EnemyFlagName) ||
+                        type == Collectable_Type.POWER && collectablesInView[i].name.Equals("Power Up")             ||
+                        type == Collectable_Type.HEALTH && collectablesInView[i].name.Equals("Health Kit")              )
                 {
                     // If yes then pick it up
                     agentActions.CollectItem(collectablesInView[i]);
@@ -72,12 +79,14 @@ public class Actions
     public class DropCollectable : Node
     {
         private AgentActions agentActions;
+        private AgentData agentData;
         private InventoryController inventoryController;
         private Collectable_Type type;
 
         public DropCollectable(AgentActions agentActions, AgentData agentData, InventoryController inventoryController, Collectable_Type type)
         {
             this.agentActions = agentActions;
+            this.agentData = agentData;
             this.inventoryController = inventoryController;
             this.type = type;
         }
@@ -88,7 +97,7 @@ public class Actions
             switch (type)
             {
                 case Collectable_Type.FLAG:
-                    collectable = inventoryController.GetItem("Flag");
+                    collectable = inventoryController.GetItem(agentData.EnemyFlagName);
                     break;
                 case Collectable_Type.HEALTH:
                     collectable = inventoryController.GetItem("Health Pack");
@@ -111,14 +120,14 @@ public class Actions
     public class MoveToGameObject : Node
     {
         private AgentActions agentActions;
-        private TeamBlackboard teamBlackboard;
+        private AgentData agentData;
         private Sensing sensing;
         private GameObject_Type type;
 
-        public MoveToGameObject(AgentActions agentActions, TeamBlackboard teamBlackboard, Sensing sensing, GameObject_Type type)
+        public MoveToGameObject(AgentActions agentActions, AgentData agentData, Sensing sensing, GameObject_Type type)
         {
             this.agentActions = agentActions;
-            this.teamBlackboard = teamBlackboard;
+            this.agentData = agentData;
             this.sensing = sensing;
             this.type = type;
         }
@@ -129,10 +138,10 @@ public class Actions
             switch (type)
             {
                 case GameObject_Type.ENEMY_FLAG:
-                    target = teamBlackboard.GetEnemyFlag();
+                    target = agentData.GetTeamBlackboard().GetEnemyFlag();
                     break;
                 case GameObject_Type.FRIENDLY_FLAG:
-                    target = teamBlackboard.GetFriendlyFlag();
+                    target = agentData.GetTeamBlackboard().GetFriendlyFlag();
                     break;
                 case GameObject_Type.HEALTH_PACK:
                     target = GetCollectableTarget("Health Kit");
@@ -144,16 +153,23 @@ public class Actions
                     target = sensing.GetNearestEnemyInView();
                     break;
                 case GameObject_Type.FRIENDLY_WITH_FLAG:
-                    target = teamBlackboard.GetMemberWithFlag();
+                    target = agentData.GetTeamBlackboard().GetMemberWithFlag();
                     break;
                 case GameObject_Type.WEAKEST_FRIENDLY:
-                    target = teamBlackboard.GetWeakestMember();
+                    target = agentData.GetTeamBlackboard().GetWeakestMember();
+                    break;
+                case GameObject_Type.BASE:
+                    target = agentData.FriendlyBase;
                     break;
             }
             // If we have the target then move to it
             if (target)
             {
                 agentActions.MoveTo(target);
+                return NodeState.RUNNING;
+            }
+            else if (sensing.IsItemInReach(target))
+            {
                 return NodeState.SUCCESS;
             }
             else
@@ -244,8 +260,37 @@ public class Actions
             }
         }
     }
-}
 
+    // Attack the nearest enemy
+    public class Attack : Node
+    {
+        Sensing sensing;
+        AgentActions agentActions;
+
+        public Attack(Sensing sensing, AgentActions agentActions)
+        {
+            this.sensing = sensing;
+            this.agentActions = agentActions;
+        }
+
+        public override NodeState Evaluate()
+        {
+            GameObject nearestEnemy = sensing.GetNearestEnemyInView();
+            if (nearestEnemy && sensing.IsInAttackRange(nearestEnemy))
+            {
+                agentActions.AttackEnemy(nearestEnemy);
+                return NodeState.SUCCESS;
+            }
+            else
+            {
+                return NodeState.FAILURE;
+            }
+        }
+    }
+}
+#endregion // Actions
+
+# region Conditions
 public class Conditions
 {
     // Check agent health
@@ -270,7 +315,10 @@ public class Conditions
             switch (type)
             {
                 case GameObject_Type.WEAKEST_FRIENDLY:
-                    result = teamBlackboard.GetWeakestMember().GetComponent<AgentData>().CurrentHitPoints < value;
+                    if (teamBlackboard.GetWeakestMember())
+                    {
+                        result = teamBlackboard.GetWeakestMember().GetComponent<AgentData>().CurrentHitPoints < value;
+                    }
                     break;
                 case GameObject_Type.THIS_AGENT:
                     result = agentData.CurrentHitPoints < value;
@@ -330,12 +378,10 @@ public class Conditions
     public class TeamHasFlag : Node
     {
         TeamBlackboard teamBlackboard; // This should be the blackboard of the team we're checking (can get from WorldBlackboard)
-        Team_Type type;
 
-        public TeamHasFlag(TeamBlackboard teamBlackboard, Team_Type type)
+        public TeamHasFlag(TeamBlackboard teamBlackboard)
         {
             this.teamBlackboard = teamBlackboard;
-            this.type = type;
         }
         public override NodeState Evaluate()
         {
@@ -353,11 +399,13 @@ public class Conditions
     // Check if agent has collectable of type
     public class GotCollectable : Node
     {
+        private AgentData agentData;
         private InventoryController inventoryController;
         Collectable_Type type;
 
-        public GotCollectable(InventoryController inventoryController, Collectable_Type type)
+        public GotCollectable(AgentData agentData, InventoryController inventoryController, Collectable_Type type)
         {
+            this.agentData = agentData;
             this.inventoryController = inventoryController;
             this.type = type;
         }
@@ -367,7 +415,7 @@ public class Conditions
             switch (type)
             {
                 case Collectable_Type.FLAG:
-                    if (inventoryController.HasItem("Flag"))
+                    if (inventoryController.HasItem(agentData.EnemyFlagName))
                     {
                         result = true;
                     }
@@ -399,11 +447,13 @@ public class Conditions
     // Check if collectable of type is in pickup range
     public class CollectableInPickupRange : Node
     {
+        private AgentData agentData;
         private Sensing sensing;
         Collectable_Type type;
 
-        public CollectableInPickupRange(Sensing sensing, Collectable_Type type)
+        public CollectableInPickupRange(AgentData agentData, Sensing sensing, Collectable_Type type)
         {
+            this.agentData = agentData;
             this.sensing = sensing;
             this.type = type;
         }
@@ -420,7 +470,7 @@ public class Conditions
                     switch (type)
                     {
                         case Collectable_Type.FLAG:
-                            if (collectablesInView[i].name.Equals("Flag"))
+                            if (collectablesInView[i].name.Equals(agentData.EnemyFlagName))
                             {
                                 result = true;
                             }
@@ -456,12 +506,10 @@ public class Conditions
     // Check if there is an enemy in attack range
     public class EnemyInAttackRange : Node
     {
-        private AgentData agentData;
         private Sensing sensing;
 
-        public EnemyInAttackRange(AgentData agentData, Sensing sensing)
+        public EnemyInAttackRange(Sensing sensing)
         {
-            this.agentData = agentData;
             this.sensing = sensing;
         }
         public override NodeState Evaluate()
@@ -499,3 +547,36 @@ public class Conditions
         }
     }
 }
+#endregion // Conditions
+
+#region Decorators
+public class Decorators
+{
+    // Reverse the result of a condition
+    public class Inverter : Node
+    {
+        private Node node;
+
+        public Inverter(Node node)
+        {
+            this.node = node;
+        }
+        public override NodeState Evaluate()
+        {
+            switch (node.Evaluate())
+            {
+                case NodeState.RUNNING:
+                    nodeState = NodeState.RUNNING;
+                    break;
+                case NodeState.SUCCESS:
+                    nodeState = NodeState.FAILURE;
+                    break;
+                case NodeState.FAILURE:
+                    nodeState = NodeState.SUCCESS;
+                    break;
+            }
+            return nodeState;
+        }
+    }
+}
+#endregion // Decorators

@@ -12,6 +12,7 @@ public class AgentData : MonoBehaviour
 {
     // Dominique, Blackboards
     private WorldBlackboard worldBlackboard;
+    public WorldBlackboard GetWorldBlackboard() { return worldBlackboard; }
     private TeamBlackboard teamBlackboard;
     // Dominique, Allow the AgentActions to update the blackboard
     public TeamBlackboard GetTeamBlackboard() { return teamBlackboard; }

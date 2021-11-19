@@ -1,6 +1,4 @@
-using System.Collections;
 using System.Collections.Generic;
-using UnityEngine;
 
 public class Sequence : Node
 {
@@ -11,27 +9,48 @@ public class Sequence : Node
         this.nodes = nodes;
     }
 
+    //public override NodeState Evaluate()
+    //{
+    //    bool isAnyNodeRunning = false;
+    //    for (int i = 0; i < nodes.Count; i++)
+    //    {
+    //        switch (nodes[i].Evaluate())
+    //        {
+    //            case NodeState.RUNNING:
+    //                isAnyNodeRunning = true;
+    //                break;
+    //            case NodeState.SUCCESS:
+    //                break;
+    //            case NodeState.FAILURE:
+    //                nodeState = NodeState.FAILURE;
+    //                return nodeState;
+    //                break;
+    //            default:
+    //                break;
+    //        }
+    //    }
+    //    nodeState = isAnyNodeRunning ? NodeState.RUNNING : NodeState.SUCCESS;
+    //    return nodeState;
+    //}
+
     public override NodeState Evaluate()
     {
-        bool isAnyNodeRunning = false;
         for (int i = 0; i < nodes.Count; i++)
         {
-            switch (nodes[i].Evaluate())
+            nodeState = nodes[i].Evaluate();
+            if (nodeState == NodeState.SUCCESS)
             {
-                case NodeState.RUNNING:
-                    isAnyNodeRunning = true;
-                    break;
-                case NodeState.SUCCESS:
-                    break;
-                case NodeState.FAILURE:
-                    nodeState = NodeState.FAILURE;
-                    return nodeState;
-                    break;
-                default:
-                    break;
+
+            }
+            if (nodeState == NodeState.RUNNING)
+            {
+                break;
+            }
+            if (nodeState == NodeState.FAILURE)
+            {
+                break;
             }
         }
-        nodeState = isAnyNodeRunning ? NodeState.RUNNING : NodeState.SUCCESS;
         return nodeState;
     }
 }

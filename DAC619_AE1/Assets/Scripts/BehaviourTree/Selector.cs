@@ -1,6 +1,4 @@
-using System.Collections;
 using System.Collections.Generic;
-using UnityEngine;
 
 public class Selector : Node
 {
@@ -24,8 +22,6 @@ public class Selector : Node
                     nodeState = NodeState.SUCCESS;
                     return nodeState;
                 case NodeState.FAILURE:
-                    break;
-                default:
                     break;
             }
         }
