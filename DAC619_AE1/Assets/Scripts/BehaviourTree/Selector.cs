@@ -23,6 +23,8 @@ public class Selector : Node
                     return nodeState;
                 case NodeState.FAILURE:
                     break;
+                default:
+                    break;
             }
         }
         nodeState = NodeState.FAILURE;

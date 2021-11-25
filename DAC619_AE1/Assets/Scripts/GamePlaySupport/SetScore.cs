@@ -13,6 +13,8 @@ public class SetScore : MonoBehaviour
     public int Score;
 
     private bool _enemyFlagInBase;
+    // Dominique, Use to check if the flag is in the base
+    public bool IsEnemyFlagInBase() { return _enemyFlagInBase; }
     private const float ScoreTickDuration = 1.0f;
 
     /// <summary>

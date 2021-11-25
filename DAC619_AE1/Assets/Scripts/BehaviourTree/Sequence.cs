@@ -11,22 +11,19 @@ public class Sequence : Node
 
     public override NodeState Evaluate()
     {
-        bool isAnyNodeRunning = false;
         for (int i = 0; i < nodes.Count; i++)
         {
             switch (nodes[i].Evaluate())
             {
                 case NodeState.RUNNING:
-                    isAnyNodeRunning = true;
-                    break;
-                case NodeState.SUCCESS:
-                    break;
+                    nodeState = NodeState.RUNNING;
+                    return nodeState;
                 case NodeState.FAILURE:
                     nodeState = NodeState.FAILURE;
                     return nodeState;
             }
         }
-        nodeState = isAnyNodeRunning ? NodeState.RUNNING : NodeState.SUCCESS;
+        nodeState = NodeState.SUCCESS;
         return nodeState;
     }
 }

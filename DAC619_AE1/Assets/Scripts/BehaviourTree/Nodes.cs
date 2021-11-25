@@ -4,7 +4,8 @@ using UnityEngine;
 #region Enums
 public enum Collectable_Type
 {
-    FLAG,
+    ENEMY_FLAG,
+    FRIENDLY_FLAG,
     HEALTH,
     POWER,
 }
@@ -21,7 +22,8 @@ public enum GameObject_Type
     WEAKEST_FRIENDLY,
     THIS_AGENT,
 
-    BASE
+    BASE,
+    NOT_IN_BASE,
 }
 public enum Useable_Type
 {
@@ -55,15 +57,19 @@ public class Actions
         }
         public override NodeState Evaluate()
         {
+#if DEBUG
+            Debug.Log("Pick Up Collectable");
+#endif //Debug
             // What collectables can the agent see
             List<GameObject> collectablesInView = sensing.GetObjectsInView();
             for (int i = 0; i < collectablesInView.Count; i++)
             {
                 // Are any of them in reach and of the type we're looking for
-                if (    sensing.IsItemInReach(collectablesInView[i])                                                &&
-                        type == Collectable_Type.FLAG && collectablesInView[i].name.Equals(agentData.EnemyFlagName) ||
-                        type == Collectable_Type.POWER && collectablesInView[i].name.Equals("Power Up")             ||
-                        type == Collectable_Type.HEALTH && collectablesInView[i].name.Equals("Health Kit")              )
+                if (    sensing.IsItemInReach(collectablesInView[i])                                                            &&
+                        type == Collectable_Type.FRIENDLY_FLAG && collectablesInView[i].name.Equals(agentData.FriendlyFlagName) ||
+                        type == Collectable_Type.ENEMY_FLAG && collectablesInView[i].name.Equals(agentData.EnemyFlagName)       ||
+                        type == Collectable_Type.POWER && collectablesInView[i].name.Equals("Power Up")                         ||
+                        type == Collectable_Type.HEALTH && collectablesInView[i].name.Equals("Health Kit")                          )
                 {
                     // If yes then pick it up
                     agentActions.CollectItem(collectablesInView[i]);
@@ -71,6 +77,9 @@ public class Actions
                 }
             }
             // We have failed to find a collectable
+#if DEBUG
+            Debug.LogError("Failed to find a collectable");
+#endif //Debug
             return NodeState.FAILURE;
         }
     }
@@ -92,11 +101,17 @@ public class Actions
         }
         public override NodeState Evaluate()
         {
+#if DEBUG
+            Debug.Log("Drop Collectable");
+#endif //DEBUG
             // Get the item of Collectable_Type from the inventory
             GameObject collectable = null;
             switch (type)
             {
-                case Collectable_Type.FLAG:
+                case Collectable_Type.FRIENDLY_FLAG:
+                    collectable = inventoryController.GetItem(agentData.FriendlyFlagName);
+                    break;
+                case Collectable_Type.ENEMY_FLAG:
                     collectable = inventoryController.GetItem(agentData.EnemyFlagName);
                     break;
                 case Collectable_Type.HEALTH:
@@ -106,12 +121,15 @@ public class Actions
                     collectable = inventoryController.GetItem("Power Up");
                     break;
             }
-            // Drop the item if we have it
+            // Drop the item
             if (collectable)
             {
                 agentActions.DropItem(collectable);
                 return NodeState.SUCCESS;
             }
+#if DEBUG
+            Debug.LogWarning("No collectable found to drop (probably just due to agent death");
+#endif //DEBUG
             return NodeState.FAILURE;
         }
     }
@@ -133,49 +151,67 @@ public class Actions
         }
         public override NodeState Evaluate()
         {
+#if DEBUG
+            Debug.Log("Move To Game Object");
+#endif //DEBUG
             // Get the target according to GameObject_Type
             GameObject target = null;
+            bool check_if_in_reach = false;
+            bool check_if_in_attack_range = false;
             switch (type)
             {
                 case GameObject_Type.ENEMY_FLAG:
                     target = agentData.GetTeamBlackboard().GetEnemyFlag();
+                    check_if_in_reach = true;
                     break;
                 case GameObject_Type.FRIENDLY_FLAG:
                     target = agentData.GetTeamBlackboard().GetFriendlyFlag();
+                    check_if_in_attack_range = true;
                     break;
                 case GameObject_Type.HEALTH_PACK:
                     target = GetCollectableTarget("Health Kit");
+                    check_if_in_reach = true;
                     break;
                 case GameObject_Type.POWER_PACK:
                     target = GetCollectableTarget("Power Up");
+                    check_if_in_reach = true;
                     break;
                 case GameObject_Type.NEAREST_ENEMY:
                     target = sensing.GetNearestEnemyInView();
+                    check_if_in_attack_range = true;
                     break;
                 case GameObject_Type.FRIENDLY_WITH_FLAG:
-                    target = agentData.GetTeamBlackboard().GetMemberWithFlag();
+                    target = agentData.GetTeamBlackboard().GetMemberWithEnemyFlag();
+                    check_if_in_attack_range = true;
                     break;
                 case GameObject_Type.WEAKEST_FRIENDLY:
                     target = agentData.GetTeamBlackboard().GetWeakestMember();
+                    check_if_in_reach = true;
                     break;
                 case GameObject_Type.BASE:
                     target = agentData.FriendlyBase;
+                    check_if_in_attack_range = true;
+                    break;
+                case GameObject_Type.NOT_IN_BASE:
+                    check_if_in_reach = true;
                     break;
             }
-            // If we have the target then move to it
-            if (target)
+
+            // Not in base is for moving the flag to a random location outside of the base (it will succeed due to the check before it)
+            if (type == GameObject_Type.NOT_IN_BASE)
             {
-                agentActions.MoveTo(target);
-                if (sensing.IsItemInReach(target))
-                {
-                    return NodeState.SUCCESS;
-                }
+                agentActions.MoveToRandomLocation();
                 return NodeState.RUNNING;
             }
-            else
+
+            // Move to the target
+            if (check_if_in_reach && sensing.IsItemInReach(target) ||
+                check_if_in_attack_range && sensing.IsInAttackRange(target))
             {
-                return NodeState.FAILURE;
+                return NodeState.SUCCESS;
             }
+            agentActions.MoveTo(target);
+            return NodeState.RUNNING;
         }
         // Get a collectable with the name 'name' in the agent's view
         private GameObject GetCollectableTarget(string name)
@@ -206,16 +242,16 @@ public class Actions
         }
         public override NodeState Evaluate()
         {
+#if DEBUG
+            Debug.Log("Flee");
+#endif //DEBUG
             GameObject nearestEnemy = sensing.GetNearestEnemyInView();
-            if (nearestEnemy)
+            if (!sensing.IsInAttackRange(nearestEnemy))
             {
-                agentActions.Flee(nearestEnemy);
                 return NodeState.SUCCESS;
             }
-            else
-            {
-                return NodeState.FAILURE;
-            }
+            agentActions.Flee(nearestEnemy);
+            return NodeState.RUNNING;
         }
     }
 
@@ -241,23 +277,22 @@ public class Actions
             switch (type)
             {
                 case Useable_Type.HEALTH:
-                    inventoryController.GetItem("Health Pack");
+#if DEBUG
+                    Debug.Log("Use health kit");
+#endif //DEBUG
+                    item = inventoryController.GetItem("Health Kit");
                     break;
                 case Useable_Type.POWER:
-                    inventoryController.GetItem("Power Up");
+#if DEBUG
+                    Debug.Log("Use power up");
+#endif //DEBUG
+                    item = inventoryController.GetItem("Power Up");
                     break;
             }
 
-            // Use the item if we have it
-            if (item)
-            {
-                agentActions.UseItem(item);
-                return NodeState.SUCCESS;
-            }
-            else
-            {
-                return NodeState.FAILURE;
-            }
+            // Use the item
+            agentActions.UseItem(item);
+            return NodeState.SUCCESS;
         }
     }
 
@@ -275,16 +310,16 @@ public class Actions
 
         public override NodeState Evaluate()
         {
+#if DEBUG
+            Debug.Log("Attack");
+#endif //DEBUG
             GameObject nearestEnemy = sensing.GetNearestEnemyInView();
-            if (nearestEnemy && sensing.IsInAttackRange(nearestEnemy))
+            agentActions.AttackEnemy(nearestEnemy);
+            if (!sensing.IsInAttackRange(sensing.GetNearestEnemyInView()))
             {
-                agentActions.AttackEnemy(nearestEnemy);
                 return NodeState.SUCCESS;
             }
-            else
-            {
-                return NodeState.FAILURE;
-            }
+            return NodeState.RUNNING;
         }
     }
 }
@@ -315,6 +350,9 @@ public class Conditions
             switch (type)
             {
                 case GameObject_Type.WEAKEST_FRIENDLY:
+#if DEBUG
+                    Debug.Log("Is weakest member health below " + value + "?");
+#endif //DEBUG
                     if (teamBlackboard.GetWeakestMember())
                     {
                         result = teamBlackboard.GetWeakestMember().GetComponent<AgentData>().CurrentHitPoints < value;
@@ -322,14 +360,23 @@ public class Conditions
                     break;
                 case GameObject_Type.THIS_AGENT:
                     result = agentData.CurrentHitPoints < value;
+#if DEBUG
+                    Debug.Log("Is this agent's health below " + value + "?");
+#endif //DEBUG
                     break;
             }
             if (result)
             {
+#if DEBUG
+                Debug.Log("YES");
+#endif //DEBUG
                 return NodeState.SUCCESS;
             }
             else
             {
+#if DEBUG
+                Debug.Log("NO");
+#endif //DEBUG
                 return NodeState.FAILURE;
             }
         }
@@ -346,29 +393,51 @@ public class Conditions
         }
         public override NodeState Evaluate()
         {
-            // See if we can find a GO of Useable_Type
+            // See if we can find a GO of Useable_Type (only counts if doesn't have a parent as that means it's already held)
             bool result = false;
             switch (type)
             {
                 case Useable_Type.HEALTH:
-                    if (GameObject.Find("Health Pack"))
+#if DEBUG
+                    Debug.Log("Is there a health pack on the level?");
+#endif //DEBUG
+                    HealthKit[] healthPacks = GameObject.FindObjectsOfType<HealthKit>();
+                    for (int i = 0; i < healthPacks.Length; i++)
                     {
-                        result = true;
+                        if (!healthPacks[i].transform.parent)
+                        {
+                            result = true;
+                            break;
+                        }
                     }
                     break;
                 case Useable_Type.POWER:
-                    if (GameObject.Find("Power Up"))
+#if DEBUG
+                    Debug.Log("Is there a power pack on the level?");
+#endif //DEBUG
+                    PowerUp[] powerPacks = GameObject.FindObjectsOfType<PowerUp>();
+                    for (int i = 0; i < powerPacks.Length; i++)
                     {
-                        result = true;
+                        if (!powerPacks[i].transform.parent)
+                        {
+                            result = true;
+                            break;
+                        }
                     }
                     break;
             }
             if (result)
             {
+#if DEBUG
+                Debug.Log("YES");
+#endif //DEBUG
                 return NodeState.SUCCESS;
             }
             else
             {
+#if DEBUG
+                Debug.Log("NO");
+#endif //DEBUG
                 return NodeState.FAILURE;
             }
         }
@@ -378,19 +447,45 @@ public class Conditions
     public class TeamHasFlag : Node
     {
         TeamBlackboard teamBlackboard; // This should be the blackboard of the team we're checking (can get from WorldBlackboard)
+        Team_Type type;
 
-        public TeamHasFlag(TeamBlackboard teamBlackboard)
+        public TeamHasFlag(TeamBlackboard teamBlackboard, Team_Type type)
         {
             this.teamBlackboard = teamBlackboard;
+            this.type = type;
         }
         public override NodeState Evaluate()
         {
-            if (teamBlackboard.GetMemberWithFlag())
+            bool got_flag = false;
+
+            switch (type)
             {
+                case Team_Type.ENEMY:
+#if DEBUG
+                    Debug.Log("Does the " + teamBlackboard.name + " team have the enemy flag?");
+#endif //DEBUG
+                    if (teamBlackboard.GetMemberWithEnemyFlag()) got_flag = true;
+                    break;
+                case Team_Type.FRIENDLY:
+#if DEBUG
+                    Debug.Log("Does the " + teamBlackboard.name + " team have the friendly flag?");
+#endif //DEBUG
+                    if (teamBlackboard.GetMemberWithFriendlyFlag()) got_flag = true;
+                    break;
+            }
+
+            if (got_flag)
+            {
+#if DEBUG
+                Debug.Log("YES");
+#endif //DEBUG
                 return NodeState.SUCCESS;
             }
             else
             {
+#if DEBUG
+                Debug.Log("NO");
+#endif //DEBUG
                 return NodeState.FAILURE;
             }
         }
@@ -414,19 +509,37 @@ public class Conditions
             bool result = false;
             switch (type)
             {
-                case Collectable_Type.FLAG:
+                case Collectable_Type.ENEMY_FLAG:
+#if DEBUG
+                    Debug.Log("Do we have the enemy flag?");
+#endif //DEBUG
                     if (inventoryController.HasItem(agentData.EnemyFlagName))
                     {
                         result = true;
                     }
                     break;
+                case Collectable_Type.FRIENDLY_FLAG:
+#if DEBUG
+                    Debug.Log("Do we have the friendly flag?");
+#endif //DEBUG
+                    if (inventoryController.HasItem(agentData.FriendlyFlagName))
+                    {
+                        result = true;
+                    }
+                    break;
                 case Collectable_Type.HEALTH:
-                    if (inventoryController.HasItem("Health Pack"))
+#if DEBUG
+                    Debug.Log("Do we have a health pack?");
+#endif //DEBUG
+                    if (inventoryController.HasItem("Health Kit"))
                     {
                         result = true;
                     }
                     break;
                 case Collectable_Type.POWER:
+#if DEBUG
+                    Debug.Log("Do we have a power pack");
+#endif //DEBUG
                     if (inventoryController.HasItem("Power Up"))
                     {
                         result = true;
@@ -435,10 +548,16 @@ public class Conditions
             }
             if (result)
             {
+#if DEBUG
+                Debug.Log("YES");
+#endif //DEBUG
                 return NodeState.SUCCESS;
             }
             else
             {
+#if DEBUG
+                Debug.Log("NO");
+#endif //DEBUG
                 return NodeState.FAILURE;
             }
         }
@@ -459,30 +578,51 @@ public class Conditions
         }
         public override NodeState Evaluate()
         {
+#if DEBUG
+            Debug.Log("Collectable In Pickup Range?");
+#endif //DEBUG
             bool result = false;
-            List<GameObject> collectablesInView = sensing.GetCollectablesInView();
-            for (int i = 0; i < collectablesInView.Count; i++)
+            List<GameObject> objectsInView = sensing.GetObjectsInView();
+            for (int i = 0; i < objectsInView.Count; i++)
             {
                 // If the item is in reach
-                if (sensing.IsItemInReach(collectablesInView[i]))
+                if (sensing.IsItemInReach(objectsInView[i]))
                 {
                     // And matches the type then it's in the pickup range
                     switch (type)
                     {
-                        case Collectable_Type.FLAG:
-                            if (collectablesInView[i].name.Equals(agentData.EnemyFlagName))
+                        case Collectable_Type.ENEMY_FLAG:
+#if DEBUG
+                            Debug.Log("Is the enemy flag in pickup range?");
+#endif //DEBUG
+                            if (objectsInView[i].name.Equals(agentData.EnemyFlagName))
+                            {
+                                result = true;
+                            }
+                            break;
+                        case Collectable_Type.FRIENDLY_FLAG:
+#if DEBUG
+                            Debug.Log("Is the friendy flag in pickup range?");
+#endif //DEBUG
+                            if (objectsInView[i].name.Equals(agentData.FriendlyFlagName))
                             {
                                 result = true;
                             }
                             break;
                         case Collectable_Type.HEALTH:
-                            if (collectablesInView[i].name.Equals("Health Pack"))
+#if DEBUG
+                            Debug.Log("Is the health in pickup range?");
+#endif //DEBUG
+                            if (objectsInView[i].name.Equals("Health Kit"))
                             {
                                 result = true;
                             }
                             break;
                         case Collectable_Type.POWER:
-                            if (collectablesInView[i].name.Equals("Power"))
+#if DEBUG
+                            Debug.Log("Is the power in pickup range?");
+#endif //DEBUG
+                            if (objectsInView[i].name.Equals("Power Up"))
                             {
                                 result = true;
                             }
@@ -494,10 +634,16 @@ public class Conditions
             }
             if (result)
             {
+#if DEBUG
+                Debug.Log("YES");
+#endif //DEBUG
                 return NodeState.SUCCESS;
             }
             else
             {
+#if DEBUG
+                Debug.Log("NO");
+#endif //DEBUG
                 return NodeState.FAILURE;
             }
         }
@@ -514,12 +660,21 @@ public class Conditions
         }
         public override NodeState Evaluate()
         {
+#if DEBUG
+            Debug.Log("Is there an enemy in attack range?");
+#endif //DEBUG
             if (sensing.IsInAttackRange(sensing.GetNearestEnemyInView()))
             {
+#if DEBUG
+                Debug.Log("YES");
+#endif //DEBUG
                 return NodeState.SUCCESS;
             }
             else
             {
+#if DEBUG
+                Debug.Log("NO");
+#endif //DEBUG
                 return NodeState.FAILURE;
             }
         }
@@ -528,20 +683,61 @@ public class Conditions
     // Check if a friendly team member is pursuing the flag
     public class TeamMemberPursuingFlag : Node
     {
-        TeamBlackboard teamBlackboard;
+        private AgentData thisAgent;
 
-        public TeamMemberPursuingFlag(TeamBlackboard teamBlackboard)
+        public TeamMemberPursuingFlag(AgentData thisAgent)
+        {
+            this.thisAgent = thisAgent;
+        }
+        public override NodeState Evaluate()
+        {
+#if DEBUG
+            Debug.Log("Is there a team member pursuing the flag?");
+#endif //DEBUG
+            // If there's only one and it's us then we don't want to stop so count it as a no
+            List<GameObject> membersPursuingFlag = thisAgent.GetTeamBlackboard().GetMembersPursuingFlag();
+            if ((membersPursuingFlag.Count == 1 && membersPursuingFlag[0] != thisAgent.gameObject) || membersPursuingFlag.Count > 1)
+            {
+#if DEBUG
+                Debug.Log("YES");
+#endif //DEBUG
+                return NodeState.SUCCESS;
+            }
+            else
+            {
+#if DEBUG
+                Debug.Log("NO");
+#endif //DEBUG
+                return NodeState.FAILURE;
+            }
+        }
+    }
+
+    public class FlagAtBase : Node
+    {
+        private TeamBlackboard teamBlackboard;
+
+        public FlagAtBase(TeamBlackboard teamBlackboard)
         {
             this.teamBlackboard = teamBlackboard;
         }
         public override NodeState Evaluate()
         {
-            if (teamBlackboard.GetMembersPursuingFlag().Count > 0)
+#if DEBUG
+            Debug.Log("Is the team's flag at their base?");
+#endif //DEBUG
+            if (teamBlackboard.GetFriendlyBase().IsEnemyFlagInBase())
             {
+#if DEBUG
+                Debug.Log("YES");
+#endif //DEBUG
                 return NodeState.SUCCESS;
             }
             else
             {
+#if DEBUG
+                Debug.Log("NO");
+#endif //DEBUG
                 return NodeState.FAILURE;
             }
         }
@@ -563,6 +759,9 @@ public class Decorators
         }
         public override NodeState Evaluate()
         {
+#if DEBUG
+            Debug.Log("Inverting...");
+#endif //DEBUG
             switch (node.Evaluate())
             {
                 case NodeState.RUNNING:
@@ -573,6 +772,8 @@ public class Decorators
                     break;
                 case NodeState.FAILURE:
                     nodeState = NodeState.SUCCESS;
+                    break;
+                default:
                     break;
             }
             return nodeState;

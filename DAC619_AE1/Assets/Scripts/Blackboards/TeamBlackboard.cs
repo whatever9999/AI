@@ -3,15 +3,26 @@ using UnityEngine;
 
 public class TeamBlackboard : MonoBehaviour
 {
+    // Bases
+    [SerializeField] private SetScore enemyBase;
+    public SetScore GetEnemyBase() { return enemyBase; }
+    [SerializeField] private SetScore friendlyBase;
+    public SetScore GetFriendlyBase() { return friendlyBase; }
+
+    // Team members
     private List<AgentData> team = new List<AgentData>();
     public void AddTeamMember(AgentData member) { team.Add(member); }
     public void RemoveTeamMember(AgentData member) 
     {
         GameObject memberGO = member.gameObject;
-        // No longer the member carrying the flag
-        if (GetMemberWithFlag() == memberGO)
+        // No longer the member carrying a flag
+        if (GetMemberWithEnemyFlag() == memberGO)
         {
-            SetMemberWithFlag(memberGO);
+            SetMemberWithEnemyFlag(null);
+        }
+        if (GetMemberWithFriendlyFlag() == memberGO)
+        {
+            SetMemberWithFriendlyFlag(null);
         }
         // No longer pursuing flag
         if (GetMembersPursuingFlag().Contains(memberGO))
@@ -27,23 +38,31 @@ public class TeamBlackboard : MonoBehaviour
         team.Remove(member); 
     }
 
+    // Flags
     [SerializeField] private GameObject enemyFlag;
     public GameObject GetEnemyFlag() { return enemyFlag; }
 
     [SerializeField] private GameObject friendlyFlag;
     public GameObject GetFriendlyFlag() { return friendlyFlag; }
 
+    // Weakest member
     private GameObject weakestMember;
     public GameObject GetWeakestMember() { return weakestMember; }
     public void SetWeakestMember(GameObject weakestMember) { this.weakestMember = weakestMember; }
 
-    private GameObject memberWithFlag;
-    public GameObject GetMemberWithFlag() { return memberWithFlag; }
-    public void SetMemberWithFlag(GameObject member) { memberWithFlag = member; }
+    // Members holding flags
+    private GameObject memberWithEnemyFlag;
+    public GameObject GetMemberWithEnemyFlag() { return memberWithEnemyFlag; }
+    public void SetMemberWithEnemyFlag(GameObject member) { memberWithEnemyFlag = member; }
+    private GameObject memberWithFriendlyFlag;
+    public GameObject GetMemberWithFriendlyFlag() { return memberWithFriendlyFlag; }
+    public void SetMemberWithFriendlyFlag(GameObject member) { memberWithFriendlyFlag = member; }
 
+    // Members pursuing flags
     private List<GameObject> membersPursuingFlag = new List<GameObject>();
     public List<GameObject> GetMembersPursuingFlag() { return membersPursuingFlag; }
-    public void AddMemberPursuingFlag(GameObject member) { membersPursuingFlag.Add(member); }
+    // Don't add a member who is already in the list
+    public void AddMemberPursuingFlag(GameObject member) { if (!membersPursuingFlag.Contains(member)) membersPursuingFlag.Add(member); }
     public void RemoveMemberPursuingFlag(GameObject member) { membersPursuingFlag.Remove(member); }
 
     private void Update()

@@ -204,7 +204,11 @@ public class AgentActions : MonoBehaviour
                     // Dominique, Update the blackboard if picking up the flag
                     if (item.name.Equals(_agentData.EnemyFlagName))
                     {
-                        _agentData.GetTeamBlackboard().SetMemberWithFlag(gameObject);
+                        _agentData.GetTeamBlackboard().SetMemberWithEnemyFlag(gameObject);
+                    }
+                    else if (item.name.Equals(_agentData.FriendlyFlagName))
+                    {
+                        _agentData.GetTeamBlackboard().SetMemberWithFriendlyFlag(gameObject);
                     }
                 }
             }
@@ -256,7 +260,11 @@ public class AgentActions : MonoBehaviour
                 // Dominique, Let the blackboard know the flag has been dropped
                 if (item.name.Equals(_agentData.EnemyFlagName))
                 {
-                    _agentData.GetTeamBlackboard().SetMemberWithFlag(null);
+                    _agentData.GetTeamBlackboard().SetMemberWithEnemyFlag(null);
+                }
+                else if (item.name.Equals(_agentData.FriendlyFlagName))
+                {
+                    _agentData.GetTeamBlackboard().SetMemberWithFriendlyFlag(null);
                 }
             }
         }
