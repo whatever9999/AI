@@ -194,6 +194,8 @@ public class AI : MonoBehaviour
             FlagAtEnemyBase = new Conditions.FlagAtBase(_agentData.GetWorldBlackboard().GetBlueTeamBlackboard());
             FlagAtFriendlyBase = new Conditions.FlagAtBase(_agentData.GetWorldBlackboard().GetRedTeamBlackboard());
         }
+
+        Conditions.HealthNextToWeakest HealthNextToWeakest = new Conditions.HealthNextToWeakest(_agentData.GetTeamBlackboard());
         #endregion // Declare Conditions
 
         #region Delcare Decorated Conditions
@@ -204,13 +206,15 @@ public class AI : MonoBehaviour
         Decorators.Inverter NoTeamMemberPursuingFlag = new Decorators.Inverter(TeamMemberPursuingFlag);
         Decorators.Inverter NoFlagAtFriendlyBase = new Decorators.Inverter(FlagAtFriendlyBase);
         Decorators.Inverter NoFlagAtEnemyBase = new Decorators.Inverter(FlagAtEnemyBase);
+        Decorators.Inverter HealthNotNextToWeakest = new Decorators.Inverter(HealthNextToWeakest);
         #endregion // Declare Decorated Conditions
 
         #region Create Branches
         // Grab Item
         Sequence GrabHealth = new Sequence(new List<Node> { HealthInPickupRange, PickUpHealth });
         Sequence GrabPower = new Sequence(new List<Node> { PowerInPickupRange, PickUpPower });
-        Selector GrabItem = new Selector(new List<Node> { GrabHealth, GrabPower });
+        Sequence GrabConsideringAid = new Sequence(new List<Node> { HealthNotNextToWeakest, GrabHealth });
+        Selector GrabItem = new Selector(new List<Node> { GrabConsideringAid, GrabPower });
 
         // Attack Enemy
         Sequence PowerAttack = new Sequence(new List<Node> { GotPower, UsePower, Attack });
@@ -260,14 +264,7 @@ public class AI : MonoBehaviour
         // Each team has slightly different tactic
         // Red prioritises defense and will remove flags from their base before attempting to get the enemy flag
         // Blue prioritises attack and will persue the enemy flag before attempting to remove flags from their base
-        if (_agentData.FriendlyTeam == AgentData.Teams.BlueTeam)
-        {
-            CaptureTheFlagAI = new Selector(new List<Node> { GrabItem, ReturnEnemyFlag, ProtectSelf, PursueEnemyFlag, RemoveFriendlyFlag, PutFriendlyFlagDown, SaveFlag, Aid, ProtectEnemyFlag, StockUp, GetEnemyFlag, AttackNearestEnemy });
-        }
-        else
-        {
-            CaptureTheFlagAI = new Selector(new List<Node> { GrabItem, ReturnEnemyFlag, ProtectSelf, RemoveFriendlyFlag, PutFriendlyFlagDown, PursueEnemyFlag, SaveFlag, Aid, ProtectEnemyFlag, StockUp, GetEnemyFlag, AttackNearestEnemy });
-        }
+        CaptureTheFlagAI = new Selector(new List<Node> { GrabItem, ReturnEnemyFlag, ProtectSelf, PursueEnemyFlag, PutFriendlyFlagDown, RemoveFriendlyFlag, SaveFlag, Aid, ProtectEnemyFlag, StockUp, GetEnemyFlag, AttackNearestEnemy });
     }
 
     // Update is called once per frame

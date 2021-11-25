@@ -115,7 +115,7 @@ public class Actions
                     collectable = inventoryController.GetItem(agentData.EnemyFlagName);
                     break;
                 case Collectable_Type.HEALTH:
-                    collectable = inventoryController.GetItem("Health Pack");
+                    collectable = inventoryController.GetItem("Health Kit");
                     break;
                 case Collectable_Type.POWER:
                     collectable = inventoryController.GetItem("Power Up");
@@ -353,7 +353,7 @@ public class Conditions
 #if DEBUG
                     Debug.Log("Is weakest member health below " + value + "?");
 #endif //DEBUG
-                    if (teamBlackboard.GetWeakestMember())
+                    if (teamBlackboard.GetWeakestMember() && teamBlackboard.GetWeakestMember() != agentData.gameObject)
                     {
                         result = teamBlackboard.GetWeakestMember().GetComponent<AgentData>().CurrentHitPoints < value;
                     }
@@ -727,6 +727,51 @@ public class Conditions
             Debug.Log("Is the team's flag at their base?");
 #endif //DEBUG
             if (teamBlackboard.GetFriendlyBase().IsEnemyFlagInBase())
+            {
+#if DEBUG
+                Debug.Log("YES");
+#endif //DEBUG
+                return NodeState.SUCCESS;
+            }
+            else
+            {
+#if DEBUG
+                Debug.Log("NO");
+#endif //DEBUG
+                return NodeState.FAILURE;
+            }
+        }
+    }
+
+    public class HealthNextToWeakest : Node
+    {
+        private TeamBlackboard teamBlackboard;
+
+        public HealthNextToWeakest(TeamBlackboard teamBlackboard)
+        {
+            this.teamBlackboard = teamBlackboard;
+        }
+        public override NodeState Evaluate()
+        {
+#if DEBUG
+            Debug.Log("Is there health next to the weakest member?");
+#endif //DEBUG
+            bool health_next_to_weakest = false;
+            if (teamBlackboard.GetWeakestMember())
+            {
+                // Check if there is a health pickup within reach of the weakest member
+                Sensing weakest_senses = teamBlackboard.GetWeakestMember().GetComponentInChildren<Sensing>();
+                List<GameObject> collectables_in_view = weakest_senses.GetCollectablesInView();
+                for (int i = 0; i < collectables_in_view.Count; i++)
+                {
+                    if (weakest_senses.IsItemInReach(collectables_in_view[i]) && collectables_in_view[i].name.Equals("Health Kit"))
+                    {
+                        health_next_to_weakest = true;
+                    }
+                }
+            }
+
+            if (health_next_to_weakest)
             {
 #if DEBUG
                 Debug.Log("YES");
