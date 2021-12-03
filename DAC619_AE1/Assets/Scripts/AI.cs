@@ -240,7 +240,7 @@ public class AI : MonoBehaviour
         Sequence Aid = new Sequence(new List<Node> { WeakestMemberHealthCheck, ProvideHealthPack });
 
         // Save Flag
-        Sequence SaveFlag = new Sequence(new List<Node> { EnemyHasFlag, MoveToFriendlyFlag, AttackEnemy });
+        Sequence SaveFriendlyFlag = new Sequence(new List<Node> { EnemyHasFlag, MoveToFriendlyFlag, AttackEnemy });
 
         // Remove Friendly Flag (from enemy base) 
         Sequence RemoveFriendlyFlag = new Sequence(new List<Node> { NotGotEnemyFlag, NoFriendlyHasFriendlyFlag, FlagAtEnemyBase, MoveToFriendlyFlag, FriendlyFlagInPickupRange, PickUpFriendlyFlag, MoveToNotInBase });
@@ -259,12 +259,15 @@ public class AI : MonoBehaviour
 
         // Return Flag
         Sequence ReturnEnemyFlag = new Sequence(new List<Node> { GotEnemyFlag, MoveToBase, DropEnemyFlag });
+
+        // Friendly Flag Defense
+        Selector FriendlyFlagDefence = new Selector(new List<Node> { PutFriendlyFlagDown, RemoveFriendlyFlag, SaveFriendlyFlag });
         #endregion // Create Branches
 
         // Each team has slightly different tactic
         // Red prioritises defense and will remove flags from their base before attempting to get the enemy flag
         // Blue prioritises attack and will persue the enemy flag before attempting to remove flags from their base
-        CaptureTheFlagAI = new Selector(new List<Node> { GrabItem, ReturnEnemyFlag, ProtectSelf, PursueEnemyFlag, PutFriendlyFlagDown, RemoveFriendlyFlag, SaveFlag, Aid, ProtectEnemyFlag, StockUp, GetEnemyFlag, AttackNearestEnemy });
+        CaptureTheFlagAI = new Selector(new List<Node> { GrabItem, ReturnEnemyFlag, ProtectSelf, PursueEnemyFlag, FriendlyFlagDefence, Aid, ProtectEnemyFlag, StockUp, GetEnemyFlag, AttackNearestEnemy });
     }
 
     // Update is called once per frame
